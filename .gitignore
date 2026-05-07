@@ -1,0 +1,31 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# os
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+*.swp
+
+# runtime artifacts
+/tmp/
+audio.wav
+*.json.tmp
+
+# api keys (paranoia, just in case)
+.env
+.env.local
+
+# preview / build outputs
+*_out/
+maqta3_out/
+
+# personal project memory (keep local, do not publish)
+CLAUDE.md
