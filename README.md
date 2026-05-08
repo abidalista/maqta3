@@ -1,8 +1,8 @@
 # maqta3 (مَقطع)
 
-أداة لـ Claude Code تحول الفيديوهات الطويلة بالعربي إلى مقاطع قصيرة جاهزة للسوشل ميديا، بترجمة عربية وتنسيق عمودي.
+أداة لـ Claude Code تحول الفيديوهات العربية الطويلة إلى مقاطع قصيرة جاهزة للنشر في تيك توك، انستغرام ريلز، يوتيوب شورتس، سناب، وإكس، مع ترجمة عربية محروقة على الفيديو.
 
-A Claude Code tool that turns long-form Arabic videos into ready-to-post vertical clips with RTL captions.
+A Claude Code tool that turns long-form Arabic videos into short clips ready to post on TikTok, Instagram Reels, YouTube Shorts, Snapchat, and X, with Arabic captions burned onto the video.
 
 ---
 
@@ -12,13 +12,11 @@ A Claude Code tool that turns long-form Arabic videos into ready-to-post vertica
 
 ### وش تسوي
 
-تعطيها رابط يوتيوب أو ملف فيديو من جهازك، تسوي التالي:
+تعطيها رابط يوتيوب أو ملف فيديو من جهازك، وراح تنسخ الكلام كله، محلياً ومجاناً، أو عبر ElevenLabs لو عندك API key. بعدها راح تقرأ النص وتختار لك أفضل 3 إلى 5 مقاطع، مع عنوان بالعربي والانجليزي وسبب اختيار كل مقطع.
 
-1. تنسخ الكلام (محلياً مجاناً، أو عبر ElevenLabs لو في API key)
-2. تختار لك أفضل 3 إلى 5 مقاطع، مع عنوان عربي وانجليزي وسبب اختيار كل مقطع
-3. تقصه وتحوله عمودي 9:16 مع تتبع المتكلم تلقائياً
-4. تضيف الترجمة العربية على الفيديو، كلمة كلمة، مع تظليل الكلمة الحالية
-5. تكتب لك هاشتاقات وعناوين بالعربي والانجليزي
+تختار اللي يعجبك، فتقصّه وتسوي له فريم عمودي يناسب تيك توك، انستغرام ريلز، يوتيوب شورتس، سناب، وإكس. لو في شخصين في الكادر، الكاميرا تنتقل بين الاثنين تلقائياً حسب من يتكلم.
+
+وأخيراً تحرق الترجمة العربية على الفيديو كلمة بكلمة، مع تظليل الكلمة الحالية باللون الأصفر، وتكتب لك هاشتاقات وعناوين جاهزة للنشر.
 
 ### التركيب
 
@@ -49,13 +47,11 @@ Built for long-form Saudi and Gulf Arabic content (podcasts, interviews, lecture
 
 ### What it does
 
-Give it a youtube URL or a local mp4, and it will:
+Give it a youtube URL or a local mp4, and it transcribes everything (locally for free, or via ElevenLabs if you set an API key). Then it reads the transcript and picks the best 3 to 5 moments, with Arabic and English titles and a reason each clip is worth cutting.
 
-1. Transcribe (locally for free, or via ElevenLabs if an API key is set)
-2. Propose the best 3 to 5 clips with Arabic + English titles and why each one lands
-3. Trim and reframe to vertical 9:16, following whoever is speaking
-4. Burn word-by-word Arabic captions with active word highlight
-5. Generate Arabic + English hooks and hashtags
+You pick the one you like, and the tool trims it and reframes it into a vertical clip ready for TikTok, Instagram Reels, YouTube Shorts, Snapchat, and X. If two people are in the frame, the camera automatically follows whoever is speaking.
+
+Finally, it burns Arabic captions onto the video word by word, highlighting the current word in yellow, and writes ready-to-post hooks and hashtags.
 
 ### Install
 
