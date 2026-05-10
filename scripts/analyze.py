@@ -7,8 +7,13 @@ The script parses (t, YAVG) per ROI, smooths, picks the louder ROI per frame,
 collapses runs, and merges runs shorter than min_dwell into the prior speaker.
 
 Usage:
-  python3 analyze.py <L.txt> <R.txt> <min_dwell_seconds> [> segments.json]
+  python3 analyze.py <L.txt> <R.txt> <min_dwell_seconds> [--smooth N] [> segments.json]
+
+The --smooth window defaults to 5 frames (centered moving average). Increase to 9-15
+for low-fps source or sparse motion logs to reduce flapping speaker labels; decrease
+to 3 if speaker changes are getting smoothed away.
 """
+import argparse
 import json
 import re
 import sys
@@ -47,13 +52,16 @@ def smooth(vals, window=5):
 
 
 def main():
-    if len(sys.argv) < 4:
-        print("usage: analyze.py L.txt R.txt min_dwell_seconds", file=sys.stderr)
-        sys.exit(1)
+    ap = argparse.ArgumentParser(description="speaker timeline from two ROI motion logs")
+    ap.add_argument("left", help="left ROI metadata file")
+    ap.add_argument("right", help="right ROI metadata file")
+    ap.add_argument("min_dwell", type=float, help="merge speaker runs shorter than this (seconds)")
+    ap.add_argument("--smooth", type=int, default=5, help="smoothing window in frames (default 5)")
+    args = ap.parse_args()
 
-    L = parse_motion(sys.argv[1])
-    R = parse_motion(sys.argv[2])
-    min_dwell = float(sys.argv[3])
+    L = parse_motion(args.left)
+    R = parse_motion(args.right)
+    min_dwell = args.min_dwell
 
     n = min(len(L), len(R))
     if n == 0:
@@ -61,8 +69,8 @@ def main():
         return
 
     times = [L[i][0] for i in range(n)]
-    lv = smooth([L[i][1] for i in range(n)])
-    rv = smooth([R[i][1] for i in range(n)])
+    lv = smooth([L[i][1] for i in range(n)], window=args.smooth)
+    rv = smooth([R[i][1] for i in range(n)], window=args.smooth)
 
     # bias toward whichever has consistently higher motion; ties go to last speaker
     last = "L" if lv[0] >= rv[0] else "R"

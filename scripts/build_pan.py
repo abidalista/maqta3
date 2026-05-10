@@ -31,8 +31,13 @@ def main():
         x = LX if s["speaker"] == "L" else RX
         parts.append((float(s["start"]), float(s["end"]), x))
 
-    expr = str(parts[-1][2])
-    for start, end, x in reversed(parts[:-1]):
+    # The else-branch of the nested if-tree is the value used when t falls outside every
+    # between() range. Pick the FIRST segment's x (so frames before the timeline starts
+    # mirror the first speaker), not the last (which would flicker on the very first
+    # frame if the timeline doesn't begin at t=0).
+    fallback_x = parts[0][2]
+    expr = str(fallback_x)
+    for start, end, x in reversed(parts):
         expr = f"if(between(t,{start:.3f},{end:.3f}),{x},{expr})"
     print(expr)
 

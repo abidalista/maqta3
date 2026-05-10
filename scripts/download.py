@@ -6,6 +6,10 @@ Usage:
 
 Requires:
   brew install yt-dlp     (or pip install yt-dlp)
+
+Minimum yt-dlp version: 2022.04.08 (introduces the `after_move:filepath` print key
+this script relies on for its primary path resolution). Older yt-dlp will silently
+fall through to the newest-mp4-in-dir fallback.
 """
 import shutil
 import subprocess
@@ -23,7 +27,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not shutil.which("yt-dlp"):
-        print("yt-dlp not found. install with: brew install yt-dlp", file=sys.stderr)
+        print("yt-dlp not found. install with: brew install yt-dlp (need ≥ 2022.04.08)", file=sys.stderr)
         sys.exit(2)
 
     template = str(out_dir / "%(title).80s_%(id)s.%(ext)s")

@@ -1,6 +1,6 @@
 ---
 name: maqta3
-description: Find quotable moments in long-form Arabic videos (especially Saudi and Gulf dialect podcasts, interviews, and lectures), cut them as standalone clips, optionally reformat 16:9 → 9:16 (face-pan or split-screen), and burn RTL Arabic captions in phrase chunks. Use when the user mentions "maqta3", "مقطع", "saudi clip", "arabic clip", "thmanyah", "finjan", "socrate", "podcast clip arabic", "longform arabic", "بودكاست", or pastes a video file path or youtube url with arabic content.
+description: Find quotable moments in long-form Arabic videos (especially Saudi and Gulf dialect podcasts, interviews, and lectures), cut them as standalone clips, optionally reformat 16:9 → 9:16 (face-pan or split-screen), and burn RTL Arabic captions (word-by-word with active highlight, or per-sentence Netflix-style). Use when the user mentions "maqta3", "مقطع", "saudi clip", "arabic clip", "thmanyah", "finjan", "socrate", "podcast clip arabic", "longform arabic", "بودكاست", or pastes a video file path or youtube url with arabic content.
 ---
 
 # maqta3 (مقطع)
@@ -27,7 +27,7 @@ Scripts in `<skill-dir>/scripts/` (where `<skill-dir>` is this folder, typically
 - `transcribe.py` — faster-whisper with VAD, cloud fallback hooks
 - `analyze.py` — speaker timeline from two ROI motion files
 - `build_pan.py` — ffmpeg crop x expression with hard cuts
-- `build_ass_rtl.py` — RTL Arabic ASS captions, phrase chunks, active word highlight
+- `build_ass_rtl.py` — RTL Arabic ASS captions. modes: word (active highlight) and netflix (per-sentence). always precomposes lam-alef and escapes ASS tags.
 
 Working dir: `/tmp/maqta3/` (mkdir at start, leave artifacts for debugging).
 
@@ -177,7 +177,12 @@ python3 <skill-dir>/scripts/transcribe.py /tmp/maqta3/clip_panned.mp4 /tmp/maqta
 python3 <skill-dir>/scripts/build_ass_rtl.py /tmp/maqta3/clip_panned.json /tmp/maqta3/captions.ass --style cairo-bold
 ```
 
-Default is word by word with active word highlight (matches what saudi social audiences expect). Pass `--chunk 2` or `--chunk 3` if you want phrase chunks instead.
+Two modes available:
+
+- **`--mode netflix`** (default): one caption per sentence (split on `.` `!` `?` `؟` from the transcript). Period only on real sentence ends. Standard YouTube/Netflix style.
+- **`--mode word`**: one caption per word with active-word highlight. Use only if the user explicitly asks for word-by-word. Pass `--chunk 2` / `--chunk 3` to keep more words visible at once for fast speech.
+
+The script always precomposes lam-alef ligatures and escapes ASS override braces — see KNOWN-ISSUES.md for the libass+harfbuzz bug this works around.
 
 Built in styles:
 
@@ -227,7 +232,7 @@ For each finished clip, generate (claude writes these directly):
 - **Long sources can OOM whisper.** faster-whisper with `vad_filter=True` handles 1+ hour fine on 16GB. If you OOM, chunk to 30 min slices and stitch JSON manually.
 - **Code switching trips whisper.** Saudi speakers drop english constantly. With `--lang ar`, whisper still phoneticizes english into arabic letters sometimes. If clippability hinges on a specific english phrase, retranscribe that span with `--lang` removed (auto detect).
 - **RTL ASS gotchas.** libass + harfbuzz handle bidi automatically. Do not manually reverse strings. Mixed punctuation (parens, quotes) follows source order in the file but renders with bidi rules.
-- **Word by word is the default** for arabic social videos. If a clip has very fast speech and individual words flicker too quickly to read, bump to `--chunk 2`.
+- **Per-sentence (netflix) is the default**. Switch to `--mode word` only if the user asks for word-by-word with active highlight; bump `--chunk 2` if individual words flicker too quickly.
 - **Diacritics (tashkeel)** are usually absent in social videos. If source has them, strip with `--strip-tashkeel`.
 - **Najdi vs Hijazi vs Khaleeji.** Vanilla whisper handles MSA best, then Egyptian, then Khaleeji. For thick Najdi, cloud fallback is sometimes the only path.
 - **Don't over tune ROIs.** Two iterations max. Motion diff is forgiving.

@@ -61,6 +61,8 @@ def transcribe_local(audio_path: str, model_name: str, lang: str | None) -> dict
     model = WhisperModel(model_name, device=device, compute_type=compute_type)
     print(f"[transcribe] loaded {model_name} on {device}/{compute_type} in {time.time()-t0:.1f}s", file=sys.stderr)
 
+    # condition_on_previous_text=False prevents whisper hallucination loops on long-form
+    # podcasts where repeated phrases in earlier segments bias later decoding. Do not flip back.
     segments_iter, info = model.transcribe(
         audio_path,
         language=lang,
@@ -71,7 +73,12 @@ def transcribe_local(audio_path: str, model_name: str, lang: str | None) -> dict
         condition_on_previous_text=False,
     )
 
-    out = {"language": info.language, "duration": info.duration, "segments": []}
+    out = {
+        "provider": f"faster-whisper-{model_name}",
+        "language": info.language,
+        "duration": info.duration,
+        "segments": [],
+    }
     for s in segments_iter:
         words = []
         if s.words:
@@ -135,29 +142,39 @@ def transcribe_elevenlabs(audio_path: str, lang: str | None) -> dict:
     return _normalize_elevenlabs(data)
 
 
+def _new_segment(idx: int) -> dict:
+    """Init segment with start=None so we can assert it's set before flush."""
+    return {"id": idx, "start": None, "end": 0.0, "text": "", "words": []}
+
+
 def _normalize_elevenlabs(data: dict) -> dict:
     """Map Scribe response to whisper-style schema."""
     words_in = data.get("words", []) or []
     segments = []
-    cur = {"id": 0, "start": 0.0, "end": 0.0, "text": "", "words": []}
+    cur = _new_segment(0)
     for w in words_in:
         if w.get("type") != "word":
             continue
         start = w.get("start", 0.0)
         end = w.get("end", start)
         token = w.get("text", "")
-        if not cur["words"]:
+        if cur["start"] is None:
             cur["start"] = start
         cur["end"] = end
         cur["text"] += (" " if cur["text"] else "") + token
         cur["words"].append({"start": start, "end": end, "word": token})
         # break a segment after long pause
-        if cur["words"] and end - cur["start"] > 8.0:
+        if end - cur["start"] > 8.0:
             segments.append(cur)
-            cur = {"id": len(segments), "start": 0.0, "end": 0.0, "text": "", "words": []}
+            cur = _new_segment(len(segments))
     if cur["words"]:
         segments.append(cur)
-    return {"language": data.get("language_code", "ar"), "duration": data.get("audio_duration_seconds", 0.0), "segments": segments}
+    return {
+        "provider": "elevenlabs-scribe",
+        "language": data.get("language_code", "ar"),
+        "duration": data.get("audio_duration_seconds", 0.0),
+        "segments": segments,
+    }
 
 
 def transcribe_assemblyai(audio_path: str, lang: str | None) -> dict:
@@ -206,22 +223,27 @@ def transcribe_assemblyai(audio_path: str, lang: str | None) -> dict:
 def _normalize_assemblyai(data: dict) -> dict:
     words_in = data.get("words", []) or []
     segments = []
-    cur = {"id": 0, "start": 0.0, "end": 0.0, "text": "", "words": []}
+    cur = _new_segment(0)
     for w in words_in:
         start = w["start"] / 1000.0
         end = w["end"] / 1000.0
         token = w["text"]
-        if not cur["words"]:
+        if cur["start"] is None:
             cur["start"] = start
         cur["end"] = end
         cur["text"] += (" " if cur["text"] else "") + token
         cur["words"].append({"start": start, "end": end, "word": token})
         if end - cur["start"] > 8.0:
             segments.append(cur)
-            cur = {"id": len(segments), "start": 0.0, "end": 0.0, "text": "", "words": []}
+            cur = _new_segment(len(segments))
     if cur["words"]:
         segments.append(cur)
-    return {"language": data.get("language_code", "ar"), "duration": data.get("audio_duration", 0.0), "segments": segments}
+    return {
+        "provider": "assemblyai",
+        "language": data.get("language_code", "ar"),
+        "duration": data.get("audio_duration", 0.0),
+        "segments": segments,
+    }
 
 
 def main():
@@ -264,15 +286,19 @@ def main():
     except SystemExit:
         raise
     except Exception as e:
+        # Re-decode against the other provider. Loud and clear so the user knows the
+        # final transcript came from the fallback, not the requested provider.
+        bar = "=" * 64
         if use_cloud:
-            print(f"[transcribe] cloud failed: {e}. falling back to local.", file=sys.stderr)
+            print(f"\n{bar}\n[transcribe] CLOUD FAILED: {e}\n[transcribe] FALLING BACK TO LOCAL faster-whisper\n{bar}\n", file=sys.stderr)
             result = transcribe_local(str(wav), args.model, lang)
         else:
-            print(f"[transcribe] local failed: {e}. trying cloud fallback.", file=sys.stderr)
+            print(f"\n{bar}\n[transcribe] LOCAL FAILED: {e}\n[transcribe] FALLING BACK TO CLOUD\n{bar}\n", file=sys.stderr)
             result = transcribe_cloud(str(wav), lang)
 
     out_json = out_dir / (src.stem + ".json")
     out_json.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    print(f"[transcribe] provider: {result.get('provider', 'unknown')}", file=sys.stderr)
     print(str(out_json))
 
 
