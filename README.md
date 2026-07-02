@@ -1,79 +1,80 @@
 # maqta3 (مَقطع)
 
-أداة لـ Claude Code تحول الفيديوهات العربية الطويلة إلى مقاطع قصيرة جاهزة للنشر في تيك توك، انستغرام ريلز، يوتيوب شورتس، سناب، وإكس، مع ترجمة عربية محروقة على الفيديو.
+أداة لـ [Claude Code](https://claude.com/claude-code) تقصّ أي لحظة من فيديو يوتيوب وتحوّلها لمقطع عمودي جاهز لتيك توك وريلز وشورتس.
 
-A Claude Code tool that turns long-form Arabic videos into short clips ready to post on TikTok, Instagram Reels, YouTube Shorts, Snapchat, and X, with Arabic captions burned onto the video.
+A [Claude Code](https://claude.com/claude-code) skill that cuts any moment out of a YouTube video and turns it into a vertical clip ready for TikTok, Reels, and Shorts.
 
 ---
 
 ## بالعربي
 
-أداة لـ Claude Code مصممة للمحتوى السعودي والخليجي الطويل (ثمانية، فنجان، سقراط، مشوار، وغيرها).
-
 ### وش تسوي
 
-تعطيها رابط يوتيوب أو ملف فيديو من جهازك، وراح تنسخ الكلام كله، محلياً ومجاناً، أو عبر ElevenLabs لو عندك API key. بعدها راح تقرأ النص وتختار لك أفضل 3 إلى 5 مقاطع، مع عنوان بالعربي والانجليزي وسبب اختيار كل مقطع.
-
-تختار اللي يعجبك، فتقصّه وتسوي له فريم عمودي يناسب تيك توك، انستغرام ريلز، يوتيوب شورتس، سناب، وإكس. لو في شخصين في الكادر، الكاميرا تنتقل بين الاثنين تلقائياً حسب من يتكلم.
-
-وأخيراً تحرق الترجمة العربية على الفيديو كلمة بكلمة، مع تظليل الكلمة الحالية باللون الأصفر، وتكتب لك هاشتاقات وعناوين جاهزة للنشر.
+تعطيها رابط يوتيوب، ووقت البداية، ووقت النهاية. تسوي لك مقطع عمودي (9:16) بجودة عالية، جاهز ترفعه على تيك توك مباشرة. بدون تفريغ نص، بدون ترجمة، بدون أسئلة. شيء واحد بس، ويسويه صح.
 
 ### التركيب
 
 ```bash
 git clone https://github.com/abidalista/maqta3.git ~/.claude/skills/maqta3
 brew install ffmpeg yt-dlp
-python3 -m pip install --user faster-whisper numpy
-brew install --cask font-cairo font-tajawal font-noto-naskh-arabic
 ```
 
 أعد فتح Claude Code، واكتب `/maqta3` في أي محادثة.
 
-### نصيحة للمحتوى السعودي
+### الاستخدام
 
-النموذج المحلي يفهم الفصحى واللهجات النظيفة. لكن لو الفيديو فيه لكنة سعودية ثقيلة أو ميكروفون بعيد، الأفضل تستخدم ElevenLabs Scribe:
+في Claude Code اكتب:
 
-```bash
-export ELEVENLABS_API_KEY="مفتاحك"
+```
+/maqta3 https://youtube.com/watch?v=xxxx 34:57 37:00
 ```
 
-تكتشفه الأداة تلقائياً وتستخدمه. التكلفة تقريباً 0.40$ للساعة.
+الرابط، ثم وقت البداية، ثم وقت النهاية. المقطع ينحفظ في `~/maqta3_out/` ويفتح لك تلقائياً.
 
 ---
 
 ## English
 
-Built for long-form Saudi and Gulf Arabic content (podcasts, interviews, lectures, sermons).
-
 ### What it does
 
-Give it a youtube URL or a local mp4, and it transcribes everything (locally for free, or via ElevenLabs if you set an API key). Then it reads the transcript and picks the best 3 to 5 moments, with Arabic and English titles and a reason each clip is worth cutting.
+Give it a YouTube URL, a start time, and an end time. It hands you a high-quality vertical (9:16) clip, ready to upload straight to TikTok. No transcription, no captions, no questions. It does one thing and does it right.
 
-You pick the one you like, and the tool trims it and reframes it into a vertical clip ready for TikTok, Instagram Reels, YouTube Shorts, Snapchat, and X. If two people are in the frame, the camera automatically follows whoever is speaking.
+Under the hood it downloads **only** the span you asked for (fast — it never pulls the whole video), then scales it full-bleed into a 1080×1920 frame with hardware acceleration.
 
-Finally, it burns Arabic captions onto the video word by word, highlighting the current word in yellow, and writes ready-to-post hooks and hashtags.
+### Requirements
+
+- [Claude Code](https://claude.com/claude-code)
+- `ffmpeg` and `yt-dlp` (`brew install ffmpeg yt-dlp`)
+- macOS (uses VideoToolbox for hardware-accelerated encoding — works on Linux/Windows if you drop the `-hwaccel videotoolbox` flag)
 
 ### Install
 
 ```bash
 git clone https://github.com/abidalista/maqta3.git ~/.claude/skills/maqta3
-brew install ffmpeg yt-dlp
-python3 -m pip install --user faster-whisper numpy
-brew install --cask font-cairo font-tajawal font-noto-naskh-arabic
 ```
 
-Restart Claude Code and `/maqta3` becomes a slash command.
+Restart Claude Code and `/maqta3` is available as a slash command.
 
-### Tip for thick Saudi accents
+### Usage
 
-Local works for clean studio audio. For heavy Najdi or far-field mics, set an ElevenLabs key:
-
-```bash
-export ELEVENLABS_API_KEY="your_key"
+```
+/maqta3 https://youtube.com/watch?v=xxxx 34:57 37:00
 ```
 
-The tool auto-detects it. Roughly $0.40 per hour of audio.
+URL, start time, end time. Times accept `HH:MM:SS`, `MM:SS`, or plain seconds. The clip lands in `~/maqta3_out/` and opens automatically.
+
+## Repo structure
+
+```
+maqta3/
+├── SKILL.md            # the skill prompt Claude Code reads
+├── scripts/
+│   └── download.py     # yt-dlp wrapper — downloads and trims just the span
+└── README.md
+```
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Built by [abidalista](https://github.com/abidalista).
