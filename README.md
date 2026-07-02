@@ -19,7 +19,7 @@ git clone https://github.com/abidalista/maqta3.git ~/.claude/skills/maqta3
 brew install ffmpeg yt-dlp
 ```
 
-أعد فتح Claude Code، واكتب `/maqta3` في أي محادثة.
+أعد فتح Claude Code، واكتب `maqta3/` في أي محادثة.
 
 ### الاستخدام
 
