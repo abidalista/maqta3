@@ -4,6 +4,8 @@
 
 A [Claude Code](https://claude.com/claude-code) skill that cuts any moment out of a YouTube video and turns it into a vertical clip ready for TikTok, Reels, and Shorts.
 
+![maqta3 turns a YouTube moment into a 9:16 clip](assets/preview.gif)
+
 ---
 
 ## بالعربي
@@ -18,6 +20,8 @@ A [Claude Code](https://claude.com/claude-code) skill that cuts any moment out o
 git clone https://github.com/abidalista/maqta3.git ~/.claude/skills/maqta3
 brew install ffmpeg yt-dlp
 ```
+
+> ما عندك `brew`؟ ثبّته أول بسطر واحد من [brew.sh](https://brew.sh)، بعدها شغّل الأمر فوق.
 
 أعد فتح Claude Code، واكتب `/maqta3` في أي محادثة.
 
@@ -47,6 +51,8 @@ Under the hood it downloads **only** the span you asked for (fast — it never p
 - `ffmpeg` and `yt-dlp` (`brew install ffmpeg yt-dlp`)
 - macOS (uses VideoToolbox for hardware-accelerated encoding — works on Linux/Windows if you drop the `-hwaccel videotoolbox` flag)
 
+> **Don't have `brew`?** Install [Homebrew](https://brew.sh) first — it's a single line you paste into Terminal — then run the command above.
+
 ### Install
 
 ```bash
@@ -70,6 +76,8 @@ maqta3/
 ├── SKILL.md            # the skill prompt Claude Code reads
 ├── scripts/
 │   └── download.py     # yt-dlp wrapper — downloads and trims just the span
+├── assets/
+│   └── preview.gif     # demo
 └── README.md
 ```
 
