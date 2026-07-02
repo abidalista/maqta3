@@ -39,7 +39,23 @@ def main():
     ap.add_argument("out_dir")
     ap.add_argument("--start")
     ap.add_argument("--end")
+    ap.add_argument("--cookies-from-browser", default="none",
+                    help="Browser to read YouTube cookies from. Default 'none' — the "
+                         "tv player client (below) already bypasses the bot block, so "
+                         "no cookies (and no macOS Keychain prompt) are needed. Only set "
+                         "this for age-restricted or members-only videos.")
     args = ap.parse_args()
+
+    cookie_args = []
+    if args.cookies_from_browser and args.cookies_from_browser.lower() != "none":
+        cookie_args = ["--cookies-from-browser", args.cookies_from_browser]
+
+    # YouTube bot-blocks the default web client ("Sign in to confirm you're not a
+    # bot") and the plain tv client hands back DRM-only formats. These clients
+    # return real formats with NO cookies (so no macOS Keychain prompt). Prepend
+    # to every yt-dlp call.
+    client_args = ["--extractor-args", "youtube:player_client=tv_embedded,web_safari,android"]
+    base = client_args + cookie_args
 
     url = args.url
     out_dir = Path(args.out_dir)
@@ -65,10 +81,11 @@ def main():
         section = f"*{p_start}-{e + pad}"
         v = out_dir / "v.mp4"
         a = out_dir / "a.m4a"
-        for spec, dest in (("bv*[ext=mp4]/bv*", v), ("ba[ext=m4a]/ba", a)):
+        for spec, dest in (("bv*[ext=mp4]/bv*/b[ext=mp4]/b", v),
+                           ("ba[ext=m4a]/ba/b[ext=mp4]/b", a)):
             r = subprocess.run(
                 ["yt-dlp", "-f", spec, "--no-playlist", "--download-sections", section,
-                 "-o", str(dest), url],
+                 *base, "-o", str(dest), url],
                 capture_output=True, text=True,
             )
             if r.returncode != 0:
@@ -98,6 +115,7 @@ def main():
         "--no-playlist",
         "-o", template,
         "--print", "after_move:filepath",
+        *base,
         url,
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
