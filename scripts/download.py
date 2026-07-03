@@ -51,10 +51,12 @@ def main():
         cookie_args = ["--cookies-from-browser", args.cookies_from_browser]
 
     # YouTube bot-blocks the default web client ("Sign in to confirm you're not a
-    # bot") and the plain tv client hands back DRM-only formats. These clients
-    # return real formats with NO cookies (so no macOS Keychain prompt). Prepend
+    # bot") and the plain tv client hands back DRM-only formats. android_vr
+    # exposes the full high-res DASH ladder (up to 4K, format 401) with NO
+    # cookies (so no macOS Keychain prompt); the others are fallbacks that at
+    # least return *some* real format. Without android_vr you get 360p. Prepend
     # to every yt-dlp call.
-    client_args = ["--extractor-args", "youtube:player_client=tv_embedded,web_safari,android"]
+    client_args = ["--extractor-args", "youtube:player_client=android_vr,tv_embedded,web_safari,android"]
     base = client_args + cookie_args
 
     url = args.url
