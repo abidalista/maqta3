@@ -1,0 +1,7 @@
+NOT VERIFIED.
+
+control-maqta3 make "https://www.youtube.com/watch?v=jNQXAC9IVRw" 1 4
+exited 1 with yt-dlp:
+  ERROR: [youtube] jNQXAC9IVRw: Sign in to confirm you’re not a bot.
+
+Tried player clients android_vr, android, ios, web, web_safari, tv, mediaconnect — all bot-blocked from this environment. No cookies/secrets used. Journey was not weakened to a local fixture.

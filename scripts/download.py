@@ -21,6 +21,11 @@ import sys
 from pathlib import Path
 
 
+def ffmpeg_hwaccel():
+    """VideoToolbox decode is macOS-only; Linux/Windows use software."""
+    return ["-hwaccel", "videotoolbox"] if sys.platform == "darwin" else []
+
+
 def to_seconds(t: str) -> str:
     """Accept HH:MM:SS, MM:SS, or seconds; return seconds as a string."""
     t = t.strip()
@@ -95,7 +100,7 @@ def main():
                 sys.exit(r.returncode)
         out = out_dir / "clip.mp4"
         r = subprocess.run(
-            ["ffmpeg", "-y", "-hwaccel", "videotoolbox",
+            ["ffmpeg", "-y", *ffmpeg_hwaccel(),
              "-ss", str(offset), "-t", str(dur), "-i", str(v),
              "-ss", str(offset), "-t", str(dur), "-i", str(a),
              "-map", "0:v", "-map", "1:a",

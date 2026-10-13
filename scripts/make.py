@@ -34,6 +34,11 @@ def to_seconds(t: str) -> float:
     return h * 3600 + m * 60 + s
 
 
+def ffmpeg_hwaccel():
+    """VideoToolbox decode is macOS-only; Linux/Windows use software."""
+    return ["-hwaccel", "videotoolbox"] if sys.platform == "darwin" else []
+
+
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -63,7 +68,7 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUT_DIR / f"{date.today():%Y%m%d}_reel_{dur}s.mp4"
     run([
-        "ffmpeg", "-y", "-hwaccel", "videotoolbox", "-i", clip,
+        "ffmpeg", "-y", *ffmpeg_hwaccel(), "-i", clip,
         "-filter_complex",
         "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[v]",
         "-map", "[v]", "-map", "0:a",
@@ -71,7 +76,9 @@ def main():
         "-c:a", "aac", "-b:a", "192k", str(out),
     ])
 
-    subprocess.run(["open", str(out)])
+    # `open` is the macOS launcher; on Linux it is xdg-open and can hang headless.
+    if sys.platform == "darwin":
+        subprocess.run(["open", str(out)])
     print(f"{out}  ({dur}s)")
 
 

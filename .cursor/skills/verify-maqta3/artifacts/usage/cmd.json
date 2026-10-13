@@ -1,0 +1,14 @@
+{
+  "tool": "make",
+  "cmd": [
+    "/usr/bin/python3",
+    "/workspace/scripts/make.py",
+    "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    "1"
+  ],
+  "exit": 1,
+  "stdout": "",
+  "stderr": "usage: make.py <url> <start> <end>\n",
+  "seconds": 0.029,
+  "home": "/tmp/maqta3-verify-20261013T153613Z-151b9b44"
+}
