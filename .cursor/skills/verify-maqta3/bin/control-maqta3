@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""control-maqta3 — drive the real maqta3 CLI for verification.
+
+Usage:
+  control-maqta3 launch
+  control-maqta3 doctor
+  control-maqta3 make [<url> <start> <end> | <args...>]
+  control-maqta3 download <url> <out_dir> [--start T] [--end T]
+  control-maqta3 probe <file>
+  control-maqta3 frame <file> <png-path>
+  control-maqta3 evidence <feature-id> [--clip FILE]
+  control-maqta3 cleanup
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+LOCK_DIR = Path("/tmp/maqta3-verify.lock")
+STATE_PATH = LOCK_DIR / "state.json"
+WORK_DIR = Path("/tmp/maqta3")
+USER_BIN = Path.home() / ".local" / "bin"
+
+
+def repo_root() -> Path:
+    for p in Path(__file__).resolve().parents:
+        if (p / "scripts" / "make.py").is_file() and (p / "scripts" / "download.py").is_file():
+            return p
+    print("maqta3 repo root not found (missing scripts/make.py)", file=sys.stderr)
+    sys.exit(2)
+
+
+def skill_dir() -> Path:
+    return repo_root() / ".cursor" / "skills" / "verify-maqta3"
+
+
+def artifacts_dir() -> Path:
+    return skill_dir() / "artifacts"
+
+
+def prepend_path() -> None:
+    extra = [str(skill_dir() / "bin"), str(USER_BIN)]
+    path = os.environ.get("PATH", "")
+    parts = [p for p in extra if p not in path.split(":")]
+    os.environ["PATH"] = ":".join(parts + [path]) if parts else path
+
+
+def which_or_none(name: str) -> str | None:
+    return shutil.which(name)
+
+
+def run_out(cmd: list[str]) -> tuple[int, str]:
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    return r.returncode, (r.stdout or "").strip()
+
+
+def load_state() -> dict | None:
+    if not STATE_PATH.is_file():
+        return None
+    try:
+        return json.loads(STATE_PATH.read_text())
+    except json.JSONDecodeError:
+        return None
+
+
+def require_state() -> dict:
+    state = load_state()
+    if not state:
+        print("no verification instance: run `control-maqta3 launch` first", file=sys.stderr)
+        sys.exit(2)
+    return state
+
+
+def write_last(record: dict) -> None:
+    state = load_state()
+    if not state:
+        return
+    path = Path(state["verify_home"]) / "last.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2) + "\n")
+
+
+def cmd_launch(_: list[str]) -> int:
+    prepend_path()
+    root = repo_root()
+
+    existing = load_state()
+    if existing or LOCK_DIR.exists():
+        run_id = (existing or {}).get("run_id", "unknown")
+        home = (existing or {}).get("verify_home", "")
+        print(
+            f"refusing to double-drive: lock held run_id={run_id} verify_home={home}",
+            file=sys.stderr,
+        )
+        print("two instances cannot share /tmp/maqta3; run `control-maqta3 cleanup` first", file=sys.stderr)
+        return 2
+
+    if not which_or_none("ffmpeg"):
+        print("ffmpeg not found. install: brew install ffmpeg  (or apt install ffmpeg)", file=sys.stderr)
+        return 2
+    if not which_or_none("yt-dlp"):
+        pip = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--user", "yt-dlp>=2023.1.6"],
+            capture_output=True,
+            text=True,
+        )
+        prepend_path()
+        if pip.returncode != 0 or not which_or_none("yt-dlp"):
+            print("yt-dlp not found and pip install --user failed:", file=sys.stderr)
+            sys.stderr.write(pip.stderr or pip.stdout or "")
+            print("install with: brew install yt-dlp  (need ≥ 2023.01.06 for spans)", file=sys.stderr)
+            return 2
+
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    verify_home = Path(f"/tmp/maqta3-verify-{run_id}")
+    verify_home.mkdir(parents=True, exist_ok=False)
+    (verify_home / "maqta3_out").mkdir()
+    WORK_DIR.mkdir(parents=True, exist_ok=True)
+
+    try:
+        LOCK_DIR.mkdir(exist_ok=False)
+    except FileExistsError:
+        print("refusing to double-drive: /tmp/maqta3-verify.lock already exists", file=sys.stderr)
+        shutil.rmtree(verify_home, ignore_errors=True)
+        return 2
+
+    state = {
+        "run_id": run_id,
+        "pid": os.getpid(),
+        "verify_home": str(verify_home),
+        "work_dir": str(WORK_DIR),
+        "repo": str(root),
+        "started": datetime.now(timezone.utc).isoformat(),
+        "platform": sys.platform,
+    }
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
+    artifacts_dir().mkdir(parents=True, exist_ok=True)
+
+    print(f"run_id: {run_id}")
+    print(f"verify_home: {verify_home}")
+    print(f"work_dir: {WORK_DIR}")
+    print(f"repo: {root}")
+    print("ready: yes")
+    return 0
+
+
+def cmd_doctor(_: list[str]) -> int:
+    prepend_path()
+    root = repo_root()
+    state = require_state()
+    problems: list[str] = []
+
+    py_ver = sys.version.split()[0]
+    ff = which_or_none("ffmpeg")
+    ytdlp = which_or_none("yt-dlp")
+    make = root / "scripts" / "make.py"
+    download = root / "scripts" / "download.py"
+    verify_home = Path(state["verify_home"])
+
+    if not ff:
+        problems.append("ffmpeg missing")
+    if not ytdlp:
+        problems.append("yt-dlp missing")
+    else:
+        code, yver = run_out(["yt-dlp", "--version"])
+        if code != 0:
+            problems.append("yt-dlp --version failed")
+            yver = "unknown"
+        else:
+            # span downloads need ≥ 2023.01.06; compare as strings YYYY.MM.DD
+            try:
+                ytuple = tuple(int(p) for p in yver.split(".")[:3])
+                if ytuple < (2023, 1, 6):
+                    problems.append(f"yt-dlp {yver} too old (need ≥ 2023.01.06 for spans)")
+            except ValueError:
+                pass
+    if not make.is_file():
+        problems.append(f"missing {make}")
+    if not download.is_file():
+        problems.append(f"missing {download}")
+    if not verify_home.is_dir():
+        problems.append(f"verify_home missing: {verify_home}")
+    if not LOCK_DIR.is_dir():
+        problems.append("lock dir missing")
+
+    hwaccel = "videotoolbox" if sys.platform == "darwin" else "software"
+    print(f"python3: {py_ver}")
+    print(f"ffmpeg: {ff or 'MISSING'}")
+    print(f"yt-dlp: {ytdlp or 'MISSING'}" + (f" ({yver})" if ytdlp else ""))
+    print(f"make.py: {make}")
+    print(f"download.py: {download}")
+    print(f"run_id: {state['run_id']}")
+    print(f"verify_home: {verify_home}")
+    print(f"work_dir: {WORK_DIR}")
+    print(f"lock: held")
+    print(f"platform: {sys.platform}")
+    print(f"hwaccel: {hwaccel}")
+    print(f"repo: {root}")
+    if problems:
+        print("ok: no")
+        for p in problems:
+            print(f"problem: {p}")
+        return 1
+    print("ok: yes")
+    return 0
+
+
+def isolated_env(state: dict) -> dict:
+    env = os.environ.copy()
+    env["HOME"] = state["verify_home"]
+    extra = [str(skill_dir() / "bin"), str(USER_BIN)]
+    path = env.get("PATH", "")
+    env["PATH"] = ":".join(extra + [path])
+    return env
+
+
+def cmd_make(args: list[str]) -> int:
+    prepend_path()
+    state = require_state()
+    root = repo_root()
+    cmd = [sys.executable, str(root / "scripts" / "make.py"), *args]
+    started = time.time()
+    r = subprocess.run(cmd, capture_output=True, text=True, env=isolated_env(state))
+    record = {
+        "tool": "make",
+        "cmd": cmd,
+        "exit": r.returncode,
+        "stdout": r.stdout or "",
+        "stderr": r.stderr or "",
+        "seconds": round(time.time() - started, 3),
+        "home": state["verify_home"],
+    }
+    write_last(record)
+    sys.stdout.write(record["stdout"])
+    sys.stderr.write(record["stderr"])
+    if record["stdout"] and not record["stdout"].endswith("\n"):
+        sys.stdout.write("\n")
+    print(f"exit: {r.returncode}")
+    return r.returncode
+
+
+def cmd_download(args: list[str]) -> int:
+    prepend_path()
+    state = require_state()
+    root = repo_root()
+    if len(args) < 2:
+        print("usage: control-maqta3 download <url> <out_dir> [--start T] [--end T]", file=sys.stderr)
+        return 2
+    cmd = [sys.executable, str(root / "scripts" / "download.py"), *args]
+    started = time.time()
+    r = subprocess.run(cmd, capture_output=True, text=True, env=isolated_env(state))
+    record = {
+        "tool": "download",
+        "cmd": cmd,
+        "exit": r.returncode,
+        "stdout": r.stdout or "",
+        "stderr": r.stderr or "",
+        "seconds": round(time.time() - started, 3),
+        "home": state["verify_home"],
+    }
+    write_last(record)
+    sys.stdout.write(record["stdout"])
+    sys.stderr.write(record["stderr"])
+    if record["stdout"] and not record["stdout"].endswith("\n"):
+        sys.stdout.write("\n")
+    print(f"exit: {r.returncode}")
+    return r.returncode
+
+
+def probe_media(path: Path) -> dict:
+    r = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-print_format", "json",
+            "-show_format", "-show_streams",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        print(r.stderr, file=sys.stderr)
+        sys.exit(r.returncode)
+    data = json.loads(r.stdout)
+    v = next((s for s in data.get("streams", []) if s.get("codec_type") == "video"), {})
+    a = next((s for s in data.get("streams", []) if s.get("codec_type") == "audio"), {})
+    fmt = data.get("format") or {}
+    return {
+        "file": str(path),
+        "width": v.get("width"),
+        "height": v.get("height"),
+        "pix_fmt": v.get("pix_fmt"),
+        "vcodec": v.get("codec_name"),
+        "acodec": a.get("codec_name"),
+        "duration": fmt.get("duration"),
+        "size": fmt.get("size"),
+    }
+
+
+def cmd_probe(args: list[str]) -> int:
+    if len(args) != 1:
+        print("usage: control-maqta3 probe <file>", file=sys.stderr)
+        return 2
+    path = Path(args[0])
+    if not path.is_file():
+        print(f"not a file: {path}", file=sys.stderr)
+        return 2
+    info = probe_media(path)
+    for k, v in info.items():
+        print(f"{k}: {v}")
+    return 0
+
+
+def cmd_frame(args: list[str]) -> int:
+    if len(args) != 2:
+        print("usage: control-maqta3 frame <file> <png-path>", file=sys.stderr)
+        return 2
+    src, dest = Path(args[0]), Path(args[1])
+    if not src.is_file():
+        print(f"not a file: {src}", file=sys.stderr)
+        return 2
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(
+        ["ffmpeg", "-y", "-ss", "0.5", "-i", str(src), "-frames:v", "1", str(dest)],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        sys.stderr.write(r.stderr)
+        return r.returncode
+    print(f"frame: {dest}")
+    return 0
+
+
+def cmd_evidence(args: list[str]) -> int:
+    prepend_path()
+    state = require_state()
+    if not args:
+        print("usage: control-maqta3 evidence <feature-id> [--clip FILE]", file=sys.stderr)
+        return 2
+    feature = args[0]
+    clip = None
+    rest = args[1:]
+    if rest:
+        if rest[0] != "--clip" or len(rest) != 2:
+            print("usage: control-maqta3 evidence <feature-id> [--clip FILE]", file=sys.stderr)
+            return 2
+        clip = Path(rest[1])
+    dest = artifacts_dir() / feature
+    dest.mkdir(parents=True, exist_ok=True)
+    last_src = Path(state["verify_home"]) / "last.json"
+    if last_src.is_file():
+        last = json.loads(last_src.read_text())
+        (dest / "cmd.json").write_text(json.dumps(last, indent=2) + "\n")
+        (dest / "stdout.txt").write_text(last.get("stdout") or "")
+        (dest / "stderr.txt").write_text(last.get("stderr") or "")
+        (dest / "exit.txt").write_text(str(last.get("exit")) + "\n")
+    else:
+        print("warning: no last.json from a drive command", file=sys.stderr)
+    (dest / "feature.txt").write_text(feature + "\n")
+    if clip:
+        if not clip.is_file():
+            print(f"clip not found: {clip}", file=sys.stderr)
+            return 2
+        copied = dest / "clip.mp4"
+        shutil.copy2(clip, copied)
+        info = probe_media(copied)
+        (dest / "probe.txt").write_text("".join(f"{k}: {v}\n" for k, v in info.items()))
+        frame_path = dest / "frame.png"
+        fr = subprocess.run(
+            ["ffmpeg", "-y", "-ss", "0.5", "-i", str(copied), "-frames:v", "1", str(frame_path)],
+            capture_output=True,
+            text=True,
+        )
+        if fr.returncode != 0:
+            sys.stderr.write(fr.stderr)
+            return fr.returncode
+        print(f"clip: {copied}")
+        print(f"probe: {dest / 'probe.txt'}")
+        print(f"frame: {frame_path}")
+    print(f"artifacts: {dest}")
+    return 0
+
+
+def cmd_cleanup(_: list[str]) -> int:
+    state = load_state()
+    # Never delete artifacts/. Only instance + scratch.
+    if state:
+        home = Path(state.get("verify_home") or "")
+        if str(home).startswith("/tmp/maqta3-verify-") and home.is_dir():
+            shutil.rmtree(home, ignore_errors=True)
+            print(f"removed: {home}")
+        if WORK_DIR.is_dir() and str(WORK_DIR) == "/tmp/maqta3":
+            for name in ("clip.mp4", "v.mp4", "a.m4a"):
+                p = WORK_DIR / name
+                p.unlink(missing_ok=True)
+            print(f"cleared work files in: {WORK_DIR}")
+    if LOCK_DIR.is_dir():
+        shutil.rmtree(LOCK_DIR, ignore_errors=True)
+        print(f"released: {LOCK_DIR}")
+    print(f"artifacts kept at: {artifacts_dir()}")
+    return 0
+
+
+COMMANDS = {
+    "launch": cmd_launch,
+    "doctor": cmd_doctor,
+    "make": cmd_make,
+    "download": cmd_download,
+    "probe": cmd_probe,
+    "frame": cmd_frame,
+    "evidence": cmd_evidence,
+    "cleanup": cmd_cleanup,
+}
+
+
+def main() -> int:
+    prepend_path()
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 2 if len(sys.argv) < 2 else 0
+    cmd = sys.argv[1]
+    if cmd not in COMMANDS:
+        print(f"unknown command: {cmd}", file=sys.stderr)
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    return COMMANDS[cmd](sys.argv[2:])
+
+
+if __name__ == "__main__":
+    sys.exit(main())
