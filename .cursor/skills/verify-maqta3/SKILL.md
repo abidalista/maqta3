@@ -131,3 +131,5 @@ If you proved on Linux instead of macOS, these steps were extra relative to a Ma
 
 1. `pip install --user yt-dlp` and `PATH` prepend `~/.local/bin` (Mac users typically `brew install yt-dlp`)
 2. Software ffmpeg path (no VideoToolbox). The Darwin `-hwaccel videotoolbox` and `open` branches stay unverified until a macOS run covers them.
+
+This environment's datacenter IP is YouTube-bot-blocked (`Sign in to confirm you’re not a bot`) for every player client tried, with no cookies. `make-clip`, `time-formats`, and `span-download` therefore cannot be proven here; do not substitute a local fixture. Re-run those features on a residential/macOS network. `usage` does not need YouTube and is the feature proven in this checkout.

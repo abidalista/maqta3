@@ -1,0 +1,11 @@
+PROVEN 2026-10-13 on Linux (software ffmpeg, no YouTube).
+
+Launch: control-maqta3 launch → ready: yes
+Doctor: control-maqta3 doctor → ok: yes
+Drive (all exit 1, stderr `usage: make.py <url> <start> <end>`):
+  control-maqta3 make
+  control-maqta3 make "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+  control-maqta3 make "https://www.youtube.com/watch?v=jNQXAC9IVRw" 1
+Side effect: $verify_home/maqta3_out/ contained no *.mp4
+Evidence captured, then control-maqta3 cleanup. These files remained.
+cmd.json is the last drive (URL + start only), per the feature recipe.
