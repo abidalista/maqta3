@@ -32,7 +32,7 @@ Launch is ready when it prints `ready: yes` and `control-maqta3 doctor` prints `
 - disposable `HOME` is `verify_home` from launch (`/tmp/maqta3-verify-<run_id>`), so clips land in `$verify_home/maqta3_out/` rather than the operator's real `~/maqta3_out`
 - work dir `/tmp/maqta3` exists (hardcoded by `make.py`)
 
-If `yt-dlp` is missing, launch runs `python3 -m pip install --user 'yt-dlp>=2023.1.6'` and prepends `~/.local/bin`. That is verification scaffolding for the documented dependency, not a mock of YouTube.
+If `yt-dlp` is missing, launch runs `python3 -m pip install --user 'yt-dlp>=2023.1.6'` and prepends `~/.local/bin`. That is verification scaffolding for the documented dependency, not a mock of YouTube. Drives set `PYTHONUSERBASE` to the operator's `~/.local` so a HOME override cannot hide that install.
 
 **Do not launch a second instance.** `make.py` always uses `/tmp/maqta3` for `clip.mp4` / `v.mp4` / `a.m4a`. Two runs will clobber each other. If launch prints `refusing to double-drive`, run `control-maqta3 cleanup` and launch again. Never drive the operator's real `HOME` or an unlocked `/tmp/maqta3`.
 

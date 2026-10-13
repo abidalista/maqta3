@@ -26,7 +26,10 @@ from pathlib import Path
 LOCK_DIR = Path("/tmp/maqta3-verify.lock")
 STATE_PATH = LOCK_DIR / "state.json"
 WORK_DIR = Path("/tmp/maqta3")
-USER_BIN = Path.home() / ".local" / "bin"
+# Captured at import, before any drive overrides HOME.
+OPERATOR_HOME = Path(os.environ.get("HOME") or str(Path.home()))
+USER_BIN = OPERATOR_HOME / ".local" / "bin"
+PYTHONUSERBASE = OPERATOR_HOME / ".local"
 
 
 def repo_root() -> Path:
@@ -215,6 +218,9 @@ def cmd_doctor(_: list[str]) -> int:
 def isolated_env(state: dict) -> dict:
     env = os.environ.copy()
     env["HOME"] = state["verify_home"]
+    # make.py uses Path.home() for ~/maqta3_out. Overriding HOME must not
+    # hide a pip --user yt-dlp install under the operator's ~/.local.
+    env["PYTHONUSERBASE"] = str(PYTHONUSERBASE)
     extra = [str(skill_dir() / "bin"), str(USER_BIN)]
     path = env.get("PATH", "")
     env["PATH"] = ":".join(extra + [path])
